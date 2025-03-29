@@ -5,6 +5,7 @@ import time
 from functools import lru_cache
 import logging
 from whois.parser import PywhoisError
+from tqdm import tqdm
 
 # Configuration
 PHASE1_WORKERS = 100  # Fast DNS workers
@@ -13,10 +14,11 @@ DNS_TIMEOUT = 2       # 2 seconds for DNS
 WHOIS_TIMEOUT = 15    # Increased timeout for WHOIS
 INPUT_FILE = "combination1.txt"
 OUTPUT_FILE = "available.txt"
+LOG_FILE = "domain_checker.log"
 WHOIS_RETRIES = 3     # Number of retries for WHOIS lookups
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Setup logging (log to a file instead of terminal)
+logging.basicConfig(filename=LOG_FILE, level=logging.WARNING, format="%(asctime)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 def setup_timeouts():
@@ -55,10 +57,10 @@ def cached_whois(domain):
             # This usually means domain is available
             if "No match for" in str(e) or "NOT FOUND" in str(e):
                 return None
-            logger.debug(f"WHOIS lookup failed (attempt {attempt+1}): {domain} - {str(e)}")
+            logger.warning(f"WHOIS lookup failed (attempt {attempt+1}): {domain} - {str(e)}")
             time.sleep(1)  # Brief delay before retry
         except Exception as e:
-            logger.debug(f"Unexpected WHOIS error (attempt {attempt+1}): {domain} - {str(e)}")
+            logger.warning(f"Unexpected WHOIS error (attempt {attempt+1}): {domain} - {str(e)}")
             time.sleep(1)
     
     # If all retries failed, assume registered to be safe
@@ -109,35 +111,19 @@ def load_domains():
         return [f"{word.strip()}.com" for word in f if word.strip().isalpha() and " " not in word.strip()]
 
 def run_phase(domains, check_func, workers, phase_name):
-    """Run a checking phase with progress reporting"""
+    """Run a checking phase with efficient progress tracking using tqdm"""
     results = []
-    start_time = time.time()
-    total = len(domains)
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
         future_to_domain = {executor.submit(check_func, domain): domain for domain in domains}
         
-        for i, future in enumerate(concurrent.futures.as_completed(future_to_domain)):
+        for future in tqdm(concurrent.futures.as_completed(future_to_domain), total=len(domains), desc=phase_name):
             domain = future_to_domain[future]
             try:
                 if future.result():
                     results.append(domain)
-                    logger.info(f"Available: {domain}")
             except Exception as e:
                 logger.error(f"Error checking {domain}: {str(e)}")
-            
-            # Progress reporting
-            if (i + 1) % 100 == 0 or (i + 1) == total:
-                elapsed = time.time() - start_time
-                rate = (i+1)/elapsed if elapsed > 0 else 0
-                remaining = (total - (i+1)) / rate if rate > 0 else 0
-                logger.info(
-                    f"{phase_name}: Processed {i+1}/{total} | "
-                    f"Found {len(results)} | "
-                    f"Rate: {rate:.1f} domains/sec | "
-                    f"Elapsed: {elapsed:.1f}s | "
-                    f"Remaining: {remaining:.1f}s"
-                )
     
     return results
 
@@ -145,26 +131,26 @@ def main():
     setup_timeouts()
     
     # Phase 1: Fast DNS pre-scan
-    logger.info("=== PHASE 1: Fast DNS Pre-Scan (95% accurate) ===")
+    print("\n=== PHASE 1: Fast DNS Pre-Scan (95% accurate) ===")
     all_domains = load_domains()
-    logger.info(f"Loaded {len(all_domains)} domains to check")
+    print(f"Loaded {len(all_domains)} domains to check")
     
     phase1_results = run_phase(all_domains, fast_dns_check, PHASE1_WORKERS, "Phase 1")
-    logger.info(f"\nPhase 1 complete: {len(phase1_results)} potential available domains")
+    print(f"\nPhase 1 complete: {len(phase1_results)} potential available domains")
     
     # Phase 2: Accurate WHOIS verification
-    logger.info("\n=== PHASE 2: WHOIS Verification (100% accurate) ===")
+    print("\n=== PHASE 2: WHOIS Verification (100% accurate) ===")
     verified_available = run_phase(phase1_results, accurate_whois_check, PHASE2_WORKERS, "Phase 2")
     
     # Save final results
     with open(OUTPUT_FILE, "w") as f:
         f.write("\n".join(verified_available))
     
-    logger.info(f"\n=== FINAL RESULTS ===")
-    logger.info(f"Scanned {len(all_domains)} total domains")
-    logger.info(f"Phase 1 candidates: {len(phase1_results)}")
-    logger.info(f"Verified available: {len(verified_available)}")
-    logger.info(f"Results saved to {OUTPUT_FILE}")
+    print(f"\n=== FINAL RESULTS ===")
+    print(f"Scanned {len(all_domains)} total domains")
+    print(f"Phase 1 candidates: {len(phase1_results)}")
+    print(f"Verified available: {len(verified_available)}")
+    print(f"Results saved to {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()
