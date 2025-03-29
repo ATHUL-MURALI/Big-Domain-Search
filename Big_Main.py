@@ -104,9 +104,9 @@ def accurate_whois_check(domain):
     return False
 
 def load_domains():
-    """Load and format domains from input file"""
+    """Load and filter domains from input file, only allowing alphabetic words with no spaces"""
     with open(INPUT_FILE, "r") as f:
-        return [f"{word.strip()}.com" for word in f if word.strip()]
+        return [f"{word.strip()}.com" for word in f if word.strip().isalpha() and " " not in word.strip()]
 
 def run_phase(domains, check_func, workers, phase_name):
     """Run a checking phase with progress reporting"""
