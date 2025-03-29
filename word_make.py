@@ -1,7 +1,7 @@
 import itertools
 import string
 
-def generate_combinations(limit=5, filename="every_words.txt"):
+def generate_combinations(limit=5, filename="combinations.txt"):
     letters = string.ascii_lowercase  # "abcdefghijklmnopqrstuvwxyz"
     
     with open(filename, "w") as file:

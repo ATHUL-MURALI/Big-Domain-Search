@@ -11,8 +11,8 @@ PHASE1_WORKERS = 100  # Fast DNS workers
 PHASE2_WORKERS = 20   # Conservative WHOIS workers (reduced for reliability)
 DNS_TIMEOUT = 2       # 2 seconds for DNS
 WHOIS_TIMEOUT = 15    # Increased timeout for WHOIS
-INPUT_FILE = "every_words.txt"
-OUTPUT_FILE = "every_verified_available.txt"
+INPUT_FILE = "combination1.txt"
+OUTPUT_FILE = "available.txt"
 WHOIS_RETRIES = 3     # Number of retries for WHOIS lookups
 
 # Setup logging
